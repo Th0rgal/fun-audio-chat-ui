@@ -1,36 +1,87 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Fun Audio Chat - Web Client
 
-## Getting Started
+A Next.js web interface for interacting with the Fun-Audio-Chat AI model running on DGX Spark.
 
-First, run the development server:
+## Features
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- 🎙️ **Real-time Audio Recording**: Click-to-record voice messages
+- 🔊 **Audio Playback**: Automatic playback of AI responses
+- 💬 **Conversation History**: Full message threading with timestamps
+- 🔧 **Tool Call Visualization**: See what functions the AI calls
+- ⚙️ **Configurable Settings**: Custom server URL and system prompts
+- 🎨 **Modern UI**: Beautiful gradient design with smooth animations
+
+## Quick Start
+
+1. **Install dependencies**:
+   ```bash
+   npm install
+   ```
+
+2. **Start development server**:
+   ```bash
+   npm run dev
+   ```
+
+3. **Open in browser**:
+   ```
+   http://localhost:3000
+   ```
+
+4. **Configure server**:
+   - In the Settings panel, set Server URL to: `http://100.77.4.93:11236`
+   - Customize the system prompt if desired
+
+5. **Start chatting**:
+   - Click the microphone button to start recording
+   - Speak your message
+   - Click again to stop recording
+   - Wait for the AI response (text + audio)
+
+## Configuration
+
+### Server URL
+The default server URL points to the DGX Spark instance:
+```
+http://100.77.4.93:11236
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Make sure:
+- You're connected to the Tailscale network
+- The Fun-Audio-Chat server is running on DGX Spark
+- Port 11236 is accessible
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### System Prompts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+You can customize the AI's behavior with different system prompts:
 
-## Learn More
+**Default (Conversational)**:
+```
+You are a helpful assistant.
+```
 
-To learn more about Next.js, take a look at the following resources:
+**Technical Expert**:
+```
+You are a technical expert who provides detailed, accurate explanations.
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Troubleshooting
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### "Cannot access microphone"
+- Check browser permissions
+- Ensure HTTPS if using Safari
+- Try different browser
 
-## Deploy on Vercel
+### "Server error" messages
+- Verify server is running: `curl http://100.77.4.93:11236/health`
+- Check network connectivity to DGX Spark
+- Review server logs on DGX Spark
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### No audio playback
+- Check browser console for errors
+- Verify audio URLs are accessible
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Related Documentation
+
+- [Main Setup Guide](../FUN_AUDIO_CHAT_SETUP.md)
+- [Fun-Audio-Chat GitHub](https://github.com/FunAudioLLM/Fun-Audio-Chat)
