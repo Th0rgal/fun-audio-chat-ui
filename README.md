@@ -2,6 +2,8 @@
 
 A Next.js web interface for interacting with the Fun-Audio-Chat AI model running on DGX Spark.
 
+**🚀 Live Demo**: https://fun-audio-chat-ui.vercel.app
+
 ## Features
 
 - 🎙️ **Real-time Audio Recording**: Click-to-record voice messages
@@ -12,6 +14,12 @@ A Next.js web interface for interacting with the Fun-Audio-Chat AI model running
 - 🎨 **Modern UI**: Beautiful gradient design with smooth animations
 
 ## Quick Start
+
+### Option 1: Use the Live Deployment
+
+Visit **https://fun-audio-chat-ui.vercel.app** and configure the server URL in settings.
+
+### Option 2: Run Locally
 
 1. **Install dependencies**:
    ```bash
@@ -81,7 +89,22 @@ You are a technical expert who provides detailed, accurate explanations.
 - Check browser console for errors
 - Verify audio URLs are accessible
 
+## Deployment
+
+The app is automatically deployed to Vercel on every push to the main branch.
+
+**Production URL**: https://fun-audio-chat-ui.vercel.app
+
+### Deploy Your Own
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/Th0rgal/fun-audio-chat-ui)
+
+Or manually:
+```bash
+vercel --prod
+```
+
 ## Related Documentation
 
-- [Main Setup Guide](../FUN_AUDIO_CHAT_SETUP.md)
+- [Main Setup Guide](https://github.com/Th0rgal/fun-audio-chat-setup)
 - [Fun-Audio-Chat GitHub](https://github.com/FunAudioLLM/Fun-Audio-Chat)
