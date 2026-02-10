@@ -191,18 +191,42 @@ export default function Home() {
     }
   };
 
-  const sanitizeServerUrl = (value: string | undefined | null) => {
-    if (!value) {
-      return defaultServerUrl;
+  const isHostedUi = () => {
+    if (typeof window === 'undefined') {
+      return false;
     }
+    return window.location.hostname.endsWith('vercel.app');
+  };
+
+  const normalizeServerUrl = (value: string) => {
     const trimmed = value.trim();
     if (!trimmed) {
       return defaultServerUrl;
     }
-    if (trimmed.startsWith('http://100.77.4.93') || trimmed.startsWith('https://100.77.4.93')) {
+
+    if (
+      trimmed.startsWith('http://100.77.4.93') ||
+      trimmed.startsWith('https://100.77.4.93')
+    ) {
+      return fallbackServerUrl;
+    }
+
+    if (trimmed.startsWith('http://spark-de79.gazella-vector.ts.net')) {
+      return trimmed.replace('http://', 'https://');
+    }
+
+    if (isHostedUi() && !trimmed.startsWith('https://spark-de79.gazella-vector.ts.net')) {
+      return fallbackServerUrl;
+    }
+
+    return trimmed;
+  };
+
+  const sanitizeServerUrl = (value: string | undefined | null) => {
+    if (!value) {
       return defaultServerUrl;
     }
-    return trimmed;
+    return normalizeServerUrl(value);
   };
 
   const resolveAudioUrl = (url: string) => {
@@ -347,6 +371,24 @@ export default function Home() {
     }
   };
 
+  const checkServerReachable = async () => {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 4000);
+    const url = `${serverUrl.replace(/\/$/, '')}/health`;
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        cache: 'no-store',
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        throw new Error(`Health check failed: ${response.status}`);
+      }
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+  };
+
   const sendAudio = async (audioBlob: Blob) => {
     setIsProcessing(true);
     let assistantMessageId: string | null = null;
@@ -381,6 +423,8 @@ export default function Home() {
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, assistantMessage]);
+
+      await checkServerReachable();
 
       // Create form data
       const formData = new FormData();
@@ -446,7 +490,7 @@ export default function Home() {
       const baseError = error instanceof Error ? error.message : 'Unknown error';
       const errorText =
         baseError === 'Failed to fetch'
-          ? 'Error: Failed to fetch. This usually means the server is unreachable or CORS is blocked. Verify the Server URL and that the DGX server allows your origin.'
+          ? `Error: Failed to fetch. The server URL was ${serverUrl}. This usually means the server is unreachable from this browser or CORS is blocked. Verify you can open ${serverUrl.replace(/\/$/, '')}/health in this browser and that the DGX server allows https://fun-audio-chat-ui.vercel.app.`
           : `Error: ${baseError}`;
       if (assistantMessageId) {
         setMessages(prev =>
@@ -481,11 +525,12 @@ export default function Home() {
     if (typeof window === 'undefined') {
       return;
     }
-    const stored = window.localStorage.getItem(settingsStorageKey);
-    if (!stored) {
-      return;
-    }
-    try {
+      const stored = window.localStorage.getItem(settingsStorageKey);
+      if (!stored) {
+        setServerUrl(normalizeServerUrl(defaultServerUrl));
+        return;
+      }
+      try {
       const parsed = JSON.parse(stored) as Partial<{
         serverUrl: string;
         systemPrompt: string;
@@ -497,6 +542,8 @@ export default function Home() {
       if (parsed.serverUrl) {
         const sanitized = sanitizeServerUrl(parsed.serverUrl);
         setServerUrl(sanitized);
+      } else {
+        setServerUrl(normalizeServerUrl(defaultServerUrl));
       }
       if (parsed.systemPrompt) {
         setSystemPrompt(parsed.systemPrompt);
