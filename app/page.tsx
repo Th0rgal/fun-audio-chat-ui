@@ -54,7 +54,7 @@ export default function Home() {
   const [streamPath, setStreamPath] = useState('/process-audio-stream');
   const [modelId, setModelId] = useState('');
   const [voicePromptFile, setVoicePromptFile] = useState<File | null>(null);
-  const defaultToolsVersion = 'v2';
+  const defaultToolsVersion = 'v3';
   const defaultToolsJson =
     '[\n  {\n    "name": "get_weather",\n    "description": "Get the current weather for a city",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "city": { "type": "string" }\n      },\n      "required": ["city"]\n    }\n  },\n  {\n    "name": "get_time",\n    "description": "Get the current time for a city or timezone",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "location": { "type": "string" }\n      },\n      "required": ["location"]\n    }\n  },\n  {\n    "name": "calculate",\n    "description": "Evaluate a math expression",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "expression": { "type": "string" }\n      },\n      "required": ["expression"]\n    }\n  },\n  {\n    "name": "translate_text",\n    "description": "Translate text to a target language",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "text": { "type": "string" },\n        "target_language": { "type": "string" }\n      },\n      "required": ["text", "target_language"]\n    }\n  },\n  {\n    "name": "summarize",\n    "description": "Summarize a passage of text",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "text": { "type": "string" }\n      },\n      "required": ["text"]\n    }\n  },\n  {\n    "name": "web_search",\n    "description": "Search the web for current information",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "query": { "type": "string" }\n      },\n      "required": ["query"]\n    }\n  },\n  {\n    "name": "get_news",\n    "description": "Fetch recent news on a topic",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "topic": { "type": "string" },\n        "region": { "type": "string" }\n      },\n      "required": ["topic"]\n    }\n  },\n  {\n    "name": "get_exchange_rate",\n    "description": "Get exchange rate between two currencies",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "base": { "type": "string" },\n        "quote": { "type": "string" }\n      },\n      "required": ["base", "quote"]\n    }\n  },\n  {\n    "name": "get_stock_price",\n    "description": "Get the latest stock price for a ticker",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "ticker": { "type": "string" },\n        "market": { "type": "string" }\n      },\n      "required": ["ticker"]\n    }\n  },\n  {\n    "name": "get_crypto_price",\n    "description": "Get the latest crypto price in a fiat currency",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "symbol": { "type": "string" },\n        "currency": { "type": "string" }\n      },\n      "required": ["symbol"]\n    }\n  },\n  {\n    "name": "convert_units",\n    "description": "Convert between units",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "value": { "type": "number" },\n        "from_unit": { "type": "string" },\n        "to_unit": { "type": "string" }\n      },\n      "required": ["value", "from_unit", "to_unit"]\n    }\n  },\n  {\n    "name": "lookup_wikipedia",\n    "description": "Look up a topic on Wikipedia",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "title": { "type": "string" }\n      },\n      "required": ["title"]\n    }\n  }\n]';
   const [toolsJson, setToolsJson] = useState(defaultToolsJson);
@@ -747,6 +747,16 @@ export default function Home() {
                     className="w-full px-3 py-2 bg-slate-700 rounded-lg border border-slate-600 focus:border-purple-500 focus:outline-none resize-none font-mono text-xs"
                     placeholder='[{"name":"get_weather","description":"Get weather","parameters":{"type":"object","properties":{"city":{"type":"string"}},"required":["city"]}}]'
                   />
+                  <div className="mt-2 flex items-center justify-between text-xs text-slate-400">
+                    <span>Default tool preset: {defaultToolsVersion}</span>
+                    <button
+                      type="button"
+                      onClick={() => setToolsJson(defaultToolsJson)}
+                      className="rounded bg-slate-700 px-2 py-1 text-slate-200 hover:bg-slate-600"
+                    >
+                      Reset to defaults
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
