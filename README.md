@@ -9,8 +9,10 @@ A Next.js web interface for interacting with the Fun-Audio-Chat AI model running
 - 🎙️ **Real-time Audio Recording**: Click-to-record voice messages
 - 🔊 **Audio Playback**: Automatic playback of AI responses
 - 💬 **Conversation History**: Full message threading with timestamps
-- 🔧 **Tool Call Visualization**: See what functions the AI calls
+- 🔧 **Tool Call Visualization**: See what functions the AI calls (including streaming updates)
+- ⚡ **Streaming Responses**: Text + tool calls update in real time
 - ⚙️ **Configurable Settings**: Custom server URL and system prompts
+- 🧩 **Model Selection**: Optional model ID for PersonaPlex or other backends
 - 🎨 **Modern UI**: Beautiful gradient design with smooth animations
 
 ## Quick Start
@@ -38,7 +40,9 @@ Visit **https://fun-audio-chat-ui.vercel.app** and configure the server URL in s
 
 4. **Configure server**:
    - In the Settings panel, set Server URL to: `http://100.77.4.93:11236`
+   - Or use the Tailscale HTTPS endpoint: `https://spark-de79.gazella-vector.ts.net`
    - Customize the system prompt if desired
+   - (Optional) Enable streaming and set the stream path
 
 5. **Start chatting**:
    - Click the microphone button to start recording
@@ -52,6 +56,16 @@ Visit **https://fun-audio-chat-ui.vercel.app** and configure the server URL in s
 The default server URL points to the DGX Spark instance:
 ```
 http://100.77.4.93:11236
+```
+
+You can also use the HTTPS Tailscale hostname (recommended for browsers):
+```
+https://spark-de79.gazella-vector.ts.net
+```
+
+You can also set a build-time default with:
+```
+NEXT_PUBLIC_DEFAULT_SERVER_URL=http://100.77.4.93:11236
 ```
 
 Make sure:
@@ -72,6 +86,38 @@ You are a helpful assistant.
 ```
 You are a technical expert who provides detailed, accurate explanations.
 ```
+
+### Streaming
+Enable **Streaming** to consume server-sent events or NDJSON. The client expects:
+- `text/event-stream` with `data: { ... }` JSON payloads
+- or newline-delimited JSON (NDJSON)
+
+### Tools (JSON)
+Provide a list of tool schemas, sent as a `tools` form field:
+```
+[
+  {
+    "name": "get_weather",
+    "description": "Get the current weather for a city",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "city": { "type": "string" }
+      },
+      "required": ["city"]
+    }
+  }
+]
+```
+
+### Model ID
+If your server supports multiple models, set **Model ID** (e.g. `nvidia/personaplex-7b-v1`). The client sends it as the `model` form field.
+
+### Voice Prompt (Optional)
+For models that accept a voice prompt, upload an audio file. The client sends it as the `voice_prompt` form field.
+
+### Settings Persistence
+Most settings (server URL, prompts, streaming, tools, model ID) are saved in `localStorage` so they persist across reloads.
 
 ## Troubleshooting
 
@@ -102,6 +148,12 @@ The app is automatically deployed to Vercel on every push to the main branch.
 Or manually:
 ```bash
 vercel --prod
+```
+
+### Node Version
+Next.js requires Node `>=20.9.0`. Use `.nvmrc` to align your local runtime:
+```bash
+nvm use
 ```
 
 ## Related Documentation

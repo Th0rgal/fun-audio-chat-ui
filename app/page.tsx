@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 
 interface Message {
+  id: string;
   role: 'user' | 'assistant';
   content: string;
   audioUrl?: string;
@@ -11,16 +12,42 @@ interface Message {
 }
 
 interface ToolCall {
+  id?: string;
   name: string;
   arguments: string;
 }
+
+interface StreamEvent {
+  type?: string;
+  delta?: string;
+  content?: string;
+  text?: string;
+  audio_url?: string;
+  url?: string;
+  name?: string;
+  arguments?: string;
+  tool_call?: ToolCall;
+  tool_calls?: ToolCall[];
+  error?: string;
+  choices?: Array<{ delta?: { content?: string; tool_calls?: Array<{ id?: string; function?: { name?: string; arguments?: string } }> } }>;
+}
+
+const defaultServerUrl =
+  process.env.NEXT_PUBLIC_DEFAULT_SERVER_URL || 'http://100.77.4.93:11236';
+
+const settingsStorageKey = 'fun-audio-chat-settings';
 
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [systemPrompt, setSystemPrompt] = useState('You are a helpful assistant.');
-  const [serverUrl, setServerUrl] = useState('http://100.77.4.93:11236');
+  const [serverUrl, setServerUrl] = useState(defaultServerUrl);
+  const [streamingEnabled, setStreamingEnabled] = useState(true);
+  const [streamPath, setStreamPath] = useState('/process-audio-stream');
+  const [modelId, setModelId] = useState('');
+  const [voicePromptFile, setVoicePromptFile] = useState<File | null>(null);
+  const [toolsJson, setToolsJson] = useState('[\n  {\n    "name": "get_weather",\n    "description": "Get the current weather for a city",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "city": { "type": "string" }\n      },\n      "required": ["city"]\n    }\n  }\n]');
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -62,57 +89,262 @@ export default function Home() {
     }
   };
 
+  const resolveAudioUrl = (url: string) => {
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return url;
+    }
+    return `${serverUrl.replace(/\/$/, '')}${url.startsWith('/') ? '' : '/'}${url}`;
+  };
+
+  const formatToolArgs = (args: string) => {
+    try {
+      return JSON.stringify(JSON.parse(args), null, 2);
+    } catch {
+      return args;
+    }
+  };
+
+  const appendAssistantDelta = (messageId: string, delta: string) => {
+    setMessages(prev =>
+      prev.map(msg => (msg.id === messageId ? { ...msg, content: msg.content + delta } : msg))
+    );
+  };
+
+  const upsertToolCall = (messageId: string, toolCall: ToolCall) => {
+    setMessages(prev =>
+      prev.map(msg => {
+        if (msg.id !== messageId) {
+          return msg;
+        }
+        const existing = msg.toolCalls || [];
+        if (toolCall.id) {
+          const index = existing.findIndex(call => call.id === toolCall.id);
+          if (index >= 0) {
+            const updated = [...existing];
+            updated[index] = {
+              ...updated[index],
+              name: toolCall.name || updated[index].name,
+              arguments: `${updated[index].arguments || ''}${toolCall.arguments || ''}`,
+            };
+            return { ...msg, toolCalls: updated };
+          }
+        }
+        return { ...msg, toolCalls: [...existing, toolCall] };
+      })
+    );
+  };
+
+  const handleStreamEvent = (messageId: string, event: StreamEvent) => {
+    if (event.error) {
+      appendAssistantDelta(messageId, `\n[Error] ${event.error}`);
+      return;
+    }
+
+    const textDelta = event.delta || event.content || event.text;
+    if (textDelta) {
+      appendAssistantDelta(messageId, textDelta);
+    }
+
+    if (event.audio_url || event.url) {
+      const resolvedUrl = resolveAudioUrl(event.audio_url || event.url || '');
+      setAudioUrl(resolvedUrl);
+      setMessages(prev =>
+        prev.map(msg => (msg.id === messageId ? { ...msg, audioUrl: resolvedUrl } : msg))
+      );
+    }
+
+    if (event.tool_call) {
+      upsertToolCall(messageId, {
+        id: event.tool_call.id,
+        name: event.tool_call.name || 'tool',
+        arguments: event.tool_call.arguments || '',
+      });
+    }
+
+    if (event.tool_calls && event.tool_calls.length > 0) {
+      event.tool_calls.forEach(tool =>
+        upsertToolCall(messageId, {
+          id: tool.id,
+          name: tool.name || 'tool',
+          arguments: tool.arguments || '',
+        })
+      );
+    }
+
+    if (event.choices && event.choices.length > 0) {
+      event.choices.forEach(choice => {
+        const delta = choice.delta;
+        if (delta?.content) {
+          appendAssistantDelta(messageId, delta.content);
+        }
+        if (delta?.tool_calls) {
+          delta.tool_calls.forEach(call => {
+            upsertToolCall(messageId, {
+              id: call.id,
+              name: call.function?.name || 'tool',
+              arguments: call.function?.arguments || '',
+            });
+          });
+        }
+      });
+    }
+  };
+
+  const parseStreamChunks = async (
+    reader: ReadableStreamDefaultReader<Uint8Array>,
+    messageId: string,
+    contentType: string
+  ) => {
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) {
+        break;
+      }
+      buffer += decoder.decode(value, { stream: true });
+
+      const isSse = contentType.includes('text/event-stream');
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          continue;
+        }
+
+        const payload = isSse && trimmed.startsWith('data:') ? trimmed.slice(5).trim() : trimmed;
+        if (payload === '[DONE]') {
+          return;
+        }
+        try {
+          const event = JSON.parse(payload) as StreamEvent;
+          handleStreamEvent(messageId, event);
+        } catch {
+          if (!isSse) {
+            appendAssistantDelta(messageId, payload);
+          }
+        }
+      }
+    }
+  };
+
   const sendAudio = async (audioBlob: Blob) => {
     setIsProcessing(true);
+    let assistantMessageId: string | null = null;
 
     try {
+      let parsedTools: unknown = null;
+      if (toolsJson.trim().length > 0) {
+        try {
+          parsedTools = JSON.parse(toolsJson);
+        } catch {
+          throw new Error('Tools JSON is invalid. Please fix the JSON format.');
+        }
+      }
+
+      const messageId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      assistantMessageId = messageId;
+
       // Add user message
       const userMessage: Message = {
+        id: `${Date.now()}-user-${Math.random().toString(16).slice(2)}`,
         role: 'user',
         content: '[Audio message]',
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, userMessage]);
 
-      // Create form data
-      const formData = new FormData();
-      formData.append('audio', audioBlob, 'audio.webm');
-      formData.append('system_prompt', systemPrompt);
-
-      // Send to server
-      const response = await fetch(`${serverUrl}/process-audio`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error(`Server error: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-
-      // Add assistant message
       const assistantMessage: Message = {
+        id: messageId,
         role: 'assistant',
-        content: data.text || data.response || 'No response',
-        audioUrl: data.audio_url,
-        toolCalls: data.tool_calls,
+        content: '',
+        toolCalls: [],
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, assistantMessage]);
 
-      // Play audio response if available
-      if (data.audio_url) {
-        setAudioUrl(data.audio_url);
+      // Create form data
+      const formData = new FormData();
+      formData.append('audio', audioBlob, 'audio.webm');
+      formData.append('system_prompt', systemPrompt);
+      if (modelId.trim().length > 0) {
+        formData.append('model', modelId.trim());
+      }
+      if (voicePromptFile) {
+        formData.append('voice_prompt', voicePromptFile);
+      }
+      if (parsedTools) {
+        formData.append('tools', JSON.stringify(parsedTools));
+      }
+
+      if (streamingEnabled) {
+        const response = await fetch(`${serverUrl.replace(/\/$/, '')}${streamPath}`, {
+          method: 'POST',
+          headers: {
+            Accept: 'text/event-stream, application/x-ndjson, application/json',
+          },
+          body: formData,
+        });
+
+        if (!response.ok || !response.body) {
+          throw new Error(`Server error: ${response.statusText}`);
+        }
+
+        const contentType = response.headers.get('content-type') || '';
+        const reader = response.body.getReader();
+        await parseStreamChunks(reader, messageId, contentType);
+      } else {
+        const response = await fetch(`${serverUrl.replace(/\/$/, '')}/process-audio`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error(`Server error: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        setMessages(prev =>
+          prev.map(msg =>
+            msg.id === messageId
+              ? {
+                  ...msg,
+                  content: data.text || data.response || 'No response',
+                  audioUrl: data.audio_url ? resolveAudioUrl(data.audio_url) : undefined,
+                  toolCalls: data.tool_calls || [],
+                }
+              : msg
+          )
+        );
+
+        if (data.audio_url) {
+          setAudioUrl(resolveAudioUrl(data.audio_url));
+        }
       }
     } catch (error) {
       console.error('Error processing audio:', error);
-      const errorMessage: Message = {
-        role: 'assistant',
-        content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, errorMessage]);
+      const errorText = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      if (assistantMessageId) {
+        setMessages(prev =>
+          prev.map(msg =>
+            msg.id === assistantMessageId
+              ? { ...msg, content: errorText, toolCalls: msg.toolCalls || [] }
+              : msg
+          )
+        );
+      } else {
+        const errorMessage: Message = {
+          id: `${Date.now()}-error-${Math.random().toString(16).slice(2)}`,
+          role: 'assistant',
+          content: errorText,
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, errorMessage]);
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -124,6 +356,61 @@ export default function Home() {
       audioPlayerRef.current.play();
     }
   }, [audioUrl]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const stored = window.localStorage.getItem(settingsStorageKey);
+    if (!stored) {
+      return;
+    }
+    try {
+      const parsed = JSON.parse(stored) as Partial<{
+        serverUrl: string;
+        systemPrompt: string;
+        streamingEnabled: boolean;
+        streamPath: string;
+        modelId: string;
+        toolsJson: string;
+      }>;
+      if (parsed.serverUrl) {
+        setServerUrl(parsed.serverUrl);
+      }
+      if (parsed.systemPrompt) {
+        setSystemPrompt(parsed.systemPrompt);
+      }
+      if (typeof parsed.streamingEnabled === 'boolean') {
+        setStreamingEnabled(parsed.streamingEnabled);
+      }
+      if (parsed.streamPath) {
+        setStreamPath(parsed.streamPath);
+      }
+      if (parsed.modelId) {
+        setModelId(parsed.modelId);
+      }
+      if (parsed.toolsJson) {
+        setToolsJson(parsed.toolsJson);
+      }
+    } catch {
+      // Ignore malformed local storage settings.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+    const payload = {
+      serverUrl,
+      systemPrompt,
+      streamingEnabled,
+      streamPath,
+      modelId,
+      toolsJson,
+    };
+    window.localStorage.setItem(settingsStorageKey, JSON.stringify(payload));
+  }, [serverUrl, systemPrompt, streamingEnabled, streamPath, modelId, toolsJson]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
@@ -153,6 +440,31 @@ export default function Home() {
                   />
                 </div>
 
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">Streaming</label>
+                  <button
+                    onClick={() => setStreamingEnabled(prev => !prev)}
+                    className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+                      streamingEnabled ? 'bg-green-500/20 text-green-200' : 'bg-slate-700 text-slate-300'
+                    }`}
+                  >
+                    {streamingEnabled ? 'Enabled' : 'Disabled'}
+                  </button>
+                </div>
+
+                {streamingEnabled && (
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Streaming Path</label>
+                    <input
+                      type="text"
+                      value={streamPath}
+                      onChange={(e) => setStreamPath(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-700 rounded-lg border border-slate-600 focus:border-purple-500 focus:outline-none"
+                      placeholder="/process-audio-stream"
+                    />
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-sm font-medium mb-2">System Prompt</label>
                   <textarea
@@ -161,6 +473,40 @@ export default function Home() {
                     rows={6}
                     className="w-full px-3 py-2 bg-slate-700 rounded-lg border border-slate-600 focus:border-purple-500 focus:outline-none resize-none"
                     placeholder="Enter system prompt..."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Model ID (optional)</label>
+                  <input
+                    type="text"
+                    value={modelId}
+                    onChange={(e) => setModelId(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-700 rounded-lg border border-slate-600 focus:border-purple-500 focus:outline-none"
+                    placeholder="nvidia/personaplex-7b-v1"
+                  />
+                  <p className="text-xs text-slate-400 mt-1">Sent as form field: model</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Voice Prompt (optional)</label>
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    onChange={(e) => setVoicePromptFile(e.target.files?.[0] || null)}
+                    className="w-full text-sm text-slate-300 file:mr-3 file:rounded file:border-0 file:bg-slate-700 file:px-3 file:py-2 file:text-slate-200 hover:file:bg-slate-600"
+                  />
+                  <p className="text-xs text-slate-400 mt-1">Sent as form field: voice_prompt</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Tools (JSON)</label>
+                  <textarea
+                    value={toolsJson}
+                    onChange={(e) => setToolsJson(e.target.value)}
+                    rows={8}
+                    className="w-full px-3 py-2 bg-slate-700 rounded-lg border border-slate-600 focus:border-purple-500 focus:outline-none resize-none font-mono text-xs"
+                    placeholder='[{"name":"get_weather","description":"Get weather","parameters":{"type":"object","properties":{"city":{"type":"string"}},"required":["city"]}}]'
                   />
                 </div>
               </div>
@@ -178,9 +524,9 @@ export default function Home() {
                     <p className="text-sm mt-2">Click the microphone to start talking</p>
                   </div>
                 ) : (
-                  messages.map((msg, idx) => (
+                  messages.map((msg) => (
                     <div
-                      key={idx}
+                      key={msg.id}
                       className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       <div
@@ -215,7 +561,7 @@ export default function Home() {
                               <div key={toolIdx} className="text-xs bg-slate-800 rounded p-2 mt-1">
                                 <span className="font-mono text-purple-300">{tool.name}</span>
                                 <pre className="mt-1 text-slate-400 overflow-x-auto">
-                                  {JSON.stringify(JSON.parse(tool.arguments), null, 2)}
+                                  {formatToolArgs(tool.arguments)}
                                 </pre>
                               </div>
                             ))}
