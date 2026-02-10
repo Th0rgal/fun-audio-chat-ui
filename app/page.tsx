@@ -33,7 +33,8 @@ interface StreamEvent {
 }
 
 const defaultServerUrl =
-  process.env.NEXT_PUBLIC_DEFAULT_SERVER_URL || 'http://100.77.4.93:11236';
+  process.env.NEXT_PUBLIC_DEFAULT_SERVER_URL ||
+  'https://spark-de79.gazella-vector.ts.net';
 
 const settingsStorageKey = 'fun-audio-chat-settings';
 
@@ -53,6 +54,71 @@ export default function Home() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const silenceStartRef = useRef<number | null>(null);
+  const autoStopSilenceMs = 1200;
+  const silenceThreshold = 0.015;
+
+  const stopSilenceDetection = () => {
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    silenceStartRef.current = null;
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+    analyserRef.current = null;
+  };
+
+  const startSilenceDetection = (stream: MediaStream) => {
+    try {
+      const audioContext = new AudioContext();
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 2048;
+
+      const source = audioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+
+      audioContextRef.current = audioContext;
+      analyserRef.current = analyser;
+
+      const data = new Uint8Array(analyser.fftSize);
+      const check = () => {
+        if (!analyserRef.current || !mediaRecorderRef.current || !isRecording) {
+          return;
+        }
+        analyserRef.current.getByteTimeDomainData(data);
+        let sum = 0;
+        for (let i = 0; i < data.length; i += 1) {
+          const normalized = (data[i] - 128) / 128;
+          sum += normalized * normalized;
+        }
+        const rms = Math.sqrt(sum / data.length);
+        const now = Date.now();
+
+        if (rms < silenceThreshold) {
+          if (!silenceStartRef.current) {
+            silenceStartRef.current = now;
+          } else if (now - silenceStartRef.current > autoStopSilenceMs) {
+            stopRecording();
+            return;
+          }
+        } else {
+          silenceStartRef.current = null;
+        }
+
+        rafRef.current = requestAnimationFrame(check);
+      };
+
+      rafRef.current = requestAnimationFrame(check);
+    } catch (error) {
+      console.warn('Silence detection disabled:', error);
+    }
+  };
 
   const startRecording = async () => {
     try {
@@ -71,11 +137,13 @@ export default function Home() {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         await sendAudio(audioBlob);
         stream.getTracks().forEach(track => track.stop());
+        stopSilenceDetection();
       };
 
       mediaRecorderRef.current = mediaRecorder;
       mediaRecorder.start();
       setIsRecording(true);
+      startSilenceDetection(stream);
     } catch (error) {
       console.error('Error accessing microphone:', error);
       alert('Could not access microphone. Please check permissions.');
@@ -327,7 +395,11 @@ export default function Home() {
       }
     } catch (error) {
       console.error('Error processing audio:', error);
-      const errorText = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      const baseError = error instanceof Error ? error.message : 'Unknown error';
+      const errorText =
+        baseError === 'Failed to fetch'
+          ? 'Error: Failed to fetch. This usually means the server is unreachable or CORS is blocked. Verify the Server URL and that the DGX server allows your origin.'
+          : `Error: ${baseError}`;
       if (assistantMessageId) {
         setMessages(prev =>
           prev.map(msg =>
@@ -436,7 +508,7 @@ export default function Home() {
                     value={serverUrl}
                     onChange={(e) => setServerUrl(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-700 rounded-lg border border-slate-600 focus:border-purple-500 focus:outline-none"
-                    placeholder="http://100.77.4.93:11236"
+                    placeholder="https://spark-de79.gazella-vector.ts.net"
                   />
                 </div>
 

@@ -39,7 +39,7 @@ Visit **https://fun-audio-chat-ui.vercel.app** and configure the server URL in s
    ```
 
 4. **Configure server**:
-   - In the Settings panel, set Server URL to: `http://100.77.4.93:11236`
+  - In the Settings panel, set Server URL to: `https://spark-de79.gazella-vector.ts.net`
    - Or use the Tailscale HTTPS endpoint: `https://spark-de79.gazella-vector.ts.net`
    - Customize the system prompt if desired
    - (Optional) Enable streaming and set the stream path
@@ -55,7 +55,7 @@ Visit **https://fun-audio-chat-ui.vercel.app** and configure the server URL in s
 ### Server URL
 The default server URL points to the DGX Spark instance:
 ```
-http://100.77.4.93:11236
+https://spark-de79.gazella-vector.ts.net
 ```
 
 You can also use the HTTPS Tailscale hostname (recommended for browsers):
@@ -65,7 +65,7 @@ https://spark-de79.gazella-vector.ts.net
 
 You can also set a build-time default with:
 ```
-NEXT_PUBLIC_DEFAULT_SERVER_URL=http://100.77.4.93:11236
+NEXT_PUBLIC_DEFAULT_SERVER_URL=https://spark-de79.gazella-vector.ts.net
 ```
 
 Make sure:
@@ -127,7 +127,7 @@ Most settings (server URL, prompts, streaming, tools, model ID) are saved in `lo
 - Try different browser
 
 ### "Server error" messages
-- Verify server is running: `curl http://100.77.4.93:11236/health`
+- Verify server is running: `curl https://spark-de79.gazella-vector.ts.net/health`
 - Check network connectivity to DGX Spark
 - Review server logs on DGX Spark
 

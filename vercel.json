@@ -7,6 +7,6 @@
   "outputDirectory": ".next",
   "regions": ["iad1"],
   "env": {
-    "NEXT_PUBLIC_DEFAULT_SERVER_URL": "http://100.77.4.93:11236"
+    "NEXT_PUBLIC_DEFAULT_SERVER_URL": "https://spark-de79.gazella-vector.ts.net"
   }
 }
