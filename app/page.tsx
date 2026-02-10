@@ -52,6 +52,7 @@ export default function Home() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const isRecordingRef = useRef(false);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -88,7 +89,7 @@ export default function Home() {
 
       const data = new Uint8Array(analyser.fftSize);
       const check = () => {
-        if (!analyserRef.current || !mediaRecorderRef.current || !isRecording) {
+        if (!analyserRef.current || !mediaRecorderRef.current || !isRecordingRef.current) {
           return;
         }
         analyserRef.current.getByteTimeDomainData(data);
@@ -142,6 +143,7 @@ export default function Home() {
 
       mediaRecorderRef.current = mediaRecorder;
       mediaRecorder.start();
+      isRecordingRef.current = true;
       setIsRecording(true);
       startSilenceDetection(stream);
     } catch (error) {
@@ -152,9 +154,24 @@ export default function Home() {
 
   const stopRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
+      isRecordingRef.current = false;
       mediaRecorderRef.current.stop();
       setIsRecording(false);
     }
+  };
+
+  const sanitizeServerUrl = (value: string | undefined | null) => {
+    if (!value) {
+      return defaultServerUrl;
+    }
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return defaultServerUrl;
+    }
+    if (trimmed.startsWith('http://100.77.4.93') || trimmed.startsWith('https://100.77.4.93')) {
+      return defaultServerUrl;
+    }
+    return trimmed;
   };
 
   const resolveAudioUrl = (url: string) => {
@@ -447,7 +464,8 @@ export default function Home() {
         toolsJson: string;
       }>;
       if (parsed.serverUrl) {
-        setServerUrl(parsed.serverUrl);
+        const sanitized = sanitizeServerUrl(parsed.serverUrl);
+        setServerUrl(sanitized);
       }
       if (parsed.systemPrompt) {
         setSystemPrompt(parsed.systemPrompt);
