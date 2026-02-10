@@ -54,8 +54,12 @@ export default function Home() {
   const [streamPath, setStreamPath] = useState('/process-audio-stream');
   const [modelId, setModelId] = useState('');
   const [voicePromptFile, setVoicePromptFile] = useState<File | null>(null);
-  const [toolsJson, setToolsJson] = useState('[\n  {\n    "name": "get_weather",\n    "description": "Get the current weather for a city",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "city": { "type": "string" }\n      },\n      "required": ["city"]\n    }\n  },\n  {\n    "name": "get_time",\n    "description": "Get the current time for a city or timezone",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "location": { "type": "string" }\n      },\n      "required": ["location"]\n    }\n  },\n  {\n    "name": "calculate",\n    "description": "Evaluate a math expression",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "expression": { "type": "string" }\n      },\n      "required": ["expression"]\n    }\n  },\n  {\n    "name": "translate_text",\n    "description": "Translate text to a target language",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "text": { "type": "string" },\n        "target_language": { "type": "string" }\n      },\n      "required": ["text", "target_language"]\n    }\n  },\n  {\n    "name": "summarize",\n    "description": "Summarize a passage of text",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "text": { "type": "string" }\n      },\n      "required": ["text"]\n    }\n  },\n  {\n    "name": "web_search",\n    "description": "Search the web for current information",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "query": { "type": "string" }\n      },\n      "required": ["query"]\n    }\n  },\n  {\n    "name": "get_news",\n    "description": "Fetch recent news on a topic",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "topic": { "type": "string" },\n        "region": { "type": "string" }\n      },\n      "required": ["topic"]\n    }\n  },\n  {\n    "name": "get_exchange_rate",\n    "description": "Get exchange rate between two currencies",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "base": { "type": "string" },\n        "quote": { "type": "string" }\n      },\n      "required": ["base", "quote"]\n    }\n  },\n  {\n    "name": "get_stock_price",\n    "description": "Get the latest stock price for a ticker",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "ticker": { "type": "string" },\n        "market": { "type": "string" }\n      },\n      "required": ["ticker"]\n    }\n  },\n  {\n    "name": "get_crypto_price",\n    "description": "Get the latest crypto price in a fiat currency",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "symbol": { "type": "string" },\n        "currency": { "type": "string" }\n      },\n      "required": ["symbol"]\n    }\n  },\n  {\n    "name": "convert_units",\n    "description": "Convert between units",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "value": { "type": "number" },\n        "from_unit": { "type": "string" },\n        "to_unit": { "type": "string" }\n      },\n      "required": ["value", "from_unit", "to_unit"]\n    }\n  },\n  {\n    "name": "lookup_wikipedia",\n    "description": "Look up a topic on Wikipedia",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "title": { "type": "string" }\n      },\n      "required": ["title"]\n    }\n  }\n]');
+  const defaultToolsVersion = 'v2';
+  const defaultToolsJson =
+    '[\n  {\n    "name": "get_weather",\n    "description": "Get the current weather for a city",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "city": { "type": "string" }\n      },\n      "required": ["city"]\n    }\n  },\n  {\n    "name": "get_time",\n    "description": "Get the current time for a city or timezone",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "location": { "type": "string" }\n      },\n      "required": ["location"]\n    }\n  },\n  {\n    "name": "calculate",\n    "description": "Evaluate a math expression",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "expression": { "type": "string" }\n      },\n      "required": ["expression"]\n    }\n  },\n  {\n    "name": "translate_text",\n    "description": "Translate text to a target language",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "text": { "type": "string" },\n        "target_language": { "type": "string" }\n      },\n      "required": ["text", "target_language"]\n    }\n  },\n  {\n    "name": "summarize",\n    "description": "Summarize a passage of text",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "text": { "type": "string" }\n      },\n      "required": ["text"]\n    }\n  },\n  {\n    "name": "web_search",\n    "description": "Search the web for current information",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "query": { "type": "string" }\n      },\n      "required": ["query"]\n    }\n  },\n  {\n    "name": "get_news",\n    "description": "Fetch recent news on a topic",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "topic": { "type": "string" },\n        "region": { "type": "string" }\n      },\n      "required": ["topic"]\n    }\n  },\n  {\n    "name": "get_exchange_rate",\n    "description": "Get exchange rate between two currencies",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "base": { "type": "string" },\n        "quote": { "type": "string" }\n      },\n      "required": ["base", "quote"]\n    }\n  },\n  {\n    "name": "get_stock_price",\n    "description": "Get the latest stock price for a ticker",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "ticker": { "type": "string" },\n        "market": { "type": "string" }\n      },\n      "required": ["ticker"]\n    }\n  },\n  {\n    "name": "get_crypto_price",\n    "description": "Get the latest crypto price in a fiat currency",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "symbol": { "type": "string" },\n        "currency": { "type": "string" }\n      },\n      "required": ["symbol"]\n    }\n  },\n  {\n    "name": "convert_units",\n    "description": "Convert between units",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "value": { "type": "number" },\n        "from_unit": { "type": "string" },\n        "to_unit": { "type": "string" }\n      },\n      "required": ["value", "from_unit", "to_unit"]\n    }\n  },\n  {\n    "name": "lookup_wikipedia",\n    "description": "Look up a topic on Wikipedia",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "title": { "type": "string" }\n      },\n      "required": ["title"]\n    }\n  }\n]';
+  const [toolsJson, setToolsJson] = useState(defaultToolsJson);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [audioPlaybackError, setAudioPlaybackError] = useState<string | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const isRecordingRef = useRef(false);
@@ -395,6 +399,18 @@ export default function Home() {
     }
   };
 
+  const buildServerError = async (response: Response) => {
+    let bodyText = '';
+    try {
+      bodyText = await response.text();
+    } catch {
+      bodyText = '';
+    }
+    const statusLine = `${response.status} ${response.statusText || ''}`.trim();
+    const detail = bodyText ? ` ${bodyText}` : '';
+    return new Error(`Server error (${statusLine}).${detail}`);
+  };
+
   const sendAudio = async (audioBlob: Blob) => {
     setIsProcessing(true);
     let assistantMessageId: string | null = null;
@@ -476,7 +492,7 @@ export default function Home() {
         });
 
         if (!response.ok || !response.body) {
-          throw new Error(`Server error: ${response.statusText}`);
+          throw await buildServerError(response);
         }
 
         const contentType = response.headers.get('content-type') || '';
@@ -497,7 +513,7 @@ export default function Home() {
         });
 
         if (!response.ok) {
-          throw new Error(`Server error: ${response.statusText}`);
+          throw await buildServerError(response);
         }
 
         const data = await response.json();
@@ -556,7 +572,14 @@ export default function Home() {
   useEffect(() => {
     if (audioUrl && audioPlayerRef.current) {
       audioPlayerRef.current.src = audioUrl;
-      audioPlayerRef.current.play();
+      audioPlayerRef.current
+        .play()
+        .then(() => setAudioPlaybackError(null))
+        .catch(() => {
+          setAudioPlaybackError(
+            'Audio playback was blocked or failed. Click play or check if the server returned audio.'
+          );
+        });
     }
   }, [audioUrl]);
 
@@ -564,12 +587,12 @@ export default function Home() {
     if (typeof window === 'undefined') {
       return;
     }
-      const stored = window.localStorage.getItem(settingsStorageKey);
-      if (!stored) {
-        setServerUrl(normalizeServerUrl(defaultServerUrl));
-        return;
-      }
-      try {
+    const stored = window.localStorage.getItem(settingsStorageKey);
+    if (!stored) {
+      setServerUrl(normalizeServerUrl(defaultServerUrl));
+      return;
+    }
+    try {
       const parsed = JSON.parse(stored) as Partial<{
         serverUrl: string;
         systemPrompt: string;
@@ -577,6 +600,7 @@ export default function Home() {
         streamPath: string;
         modelId: string;
         toolsJson: string;
+        toolsVersion: string;
       }>;
       if (parsed.serverUrl) {
         const sanitized = sanitizeServerUrl(parsed.serverUrl);
@@ -596,8 +620,10 @@ export default function Home() {
       if (parsed.modelId) {
         setModelId(parsed.modelId);
       }
-      if (parsed.toolsJson) {
+      if (parsed.toolsVersion === defaultToolsVersion && parsed.toolsJson) {
         setToolsJson(parsed.toolsJson);
+      } else {
+        setToolsJson(defaultToolsJson);
       }
     } catch {
       // Ignore malformed local storage settings.
@@ -615,6 +641,7 @@ export default function Home() {
       streamPath,
       modelId,
       toolsJson,
+      toolsVersion: defaultToolsVersion,
     };
     window.localStorage.setItem(settingsStorageKey, JSON.stringify(payload));
   }, [serverUrl, systemPrompt, streamingEnabled, streamPath, modelId, toolsJson]);
@@ -628,6 +655,11 @@ export default function Home() {
           </h1>
           <p className="text-slate-300">Voice-enabled AI assistant with tool calling</p>
         </header>
+        {audioPlaybackError && (
+          <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+            {audioPlaybackError}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Settings Panel */}
