@@ -46,13 +46,15 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [systemPrompt, setSystemPrompt] = useState('You are a helpful assistant.');
+  const [systemPrompt, setSystemPrompt] = useState(
+    'You are a helpful assistant. You must generate both text and speech tokens at the same time.'
+  );
   const [serverUrl, setServerUrl] = useState(defaultServerUrl);
   const [streamingEnabled, setStreamingEnabled] = useState(true);
   const [streamPath, setStreamPath] = useState('/process-audio-stream');
   const [modelId, setModelId] = useState('');
   const [voicePromptFile, setVoicePromptFile] = useState<File | null>(null);
-  const [toolsJson, setToolsJson] = useState('[\n  {\n    "name": "get_weather",\n    "description": "Get the current weather for a city",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "city": { "type": "string" }\n      },\n      "required": ["city"]\n    }\n  }\n]');
+  const [toolsJson, setToolsJson] = useState('[\n  {\n    "name": "get_weather",\n    "description": "Get the current weather for a city",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "city": { "type": "string" }\n      },\n      "required": ["city"]\n    }\n  },\n  {\n    "name": "get_time",\n    "description": "Get the current time for a city or timezone",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "location": { "type": "string" }\n      },\n      "required": ["location"]\n    }\n  },\n  {\n    "name": "calculate",\n    "description": "Evaluate a math expression",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "expression": { "type": "string" }\n      },\n      "required": ["expression"]\n    }\n  },\n  {\n    "name": "translate_text",\n    "description": "Translate text to a target language",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "text": { "type": "string" },\n        "target_language": { "type": "string" }\n      },\n      "required": ["text", "target_language"]\n    }\n  },\n  {\n    "name": "summarize",\n    "description": "Summarize a passage of text",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "text": { "type": "string" }\n      },\n      "required": ["text"]\n    }\n  },\n  {\n    "name": "web_search",\n    "description": "Search the web for current information",\n    "parameters": {\n      "type": "object",\n      "properties": {\n        "query": { "type": "string" }\n      },\n      "required": ["query"]\n    }\n  }\n]');
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
