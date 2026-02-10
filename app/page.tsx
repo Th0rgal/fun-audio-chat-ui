@@ -65,6 +65,8 @@ export default function Home() {
   const silenceStartRef = useRef<number | null>(null);
   const silenceThresholdRef = useRef<number>(0.015);
   const autoStopSilenceMs = 1200;
+  const maxRecordingMs = 30000;
+  const recordingStartRef = useRef<number | null>(null);
 
   const stopSilenceDetection = () => {
     if (rafRef.current) {
@@ -72,6 +74,7 @@ export default function Home() {
       rafRef.current = null;
     }
     silenceStartRef.current = null;
+    recordingStartRef.current = null;
     if (audioContextRef.current) {
       audioContextRef.current.close();
       audioContextRef.current = null;
@@ -79,11 +82,11 @@ export default function Home() {
     analyserRef.current = null;
   };
 
-  const startSilenceDetection = (stream: MediaStream) => {
+  const startSilenceDetection = async (stream: MediaStream) => {
     try {
       const audioContext = new AudioContext();
       if (audioContext.state === 'suspended') {
-        audioContext.resume().catch(() => undefined);
+        await audioContext.resume();
       }
       const analyser = audioContext.createAnalyser();
       analyser.fftSize = 2048;
@@ -99,6 +102,7 @@ export default function Home() {
       const calibrationWindowMs = 350;
       let calibrationSum = 0;
       let calibrationCount = 0;
+      recordingStartRef.current = calibrationStart;
       const check = () => {
         if (!analyserRef.current || !mediaRecorderRef.current || !isRecordingRef.current) {
           return;
@@ -112,12 +116,17 @@ export default function Home() {
         const rms = Math.sqrt(sum / data.length);
         const now = Date.now();
 
+        if (recordingStartRef.current && now - recordingStartRef.current > maxRecordingMs) {
+          stopRecording();
+          return;
+        }
+
         if (now - calibrationStart < calibrationWindowMs) {
           calibrationSum += rms;
           calibrationCount += 1;
         } else if (calibrationCount > 0 && silenceThresholdRef.current === 0.015) {
           const baseline = calibrationSum / calibrationCount;
-          silenceThresholdRef.current = Math.max(0.01, baseline * 1.8);
+          silenceThresholdRef.current = Math.max(0.01, Math.min(0.08, baseline * 1.8));
         }
 
         if (rms < silenceThresholdRef.current) {
@@ -167,7 +176,7 @@ export default function Home() {
       mediaRecorder.start();
       isRecordingRef.current = true;
       setIsRecording(true);
-      startSilenceDetection(stream);
+      await startSilenceDetection(stream);
     } catch (error) {
       console.error('Error accessing microphone:', error);
       alert('Could not access microphone. Please check permissions.');
