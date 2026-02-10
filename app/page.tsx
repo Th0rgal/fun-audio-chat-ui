@@ -333,7 +333,8 @@ export default function Home() {
   const parseStreamChunks = async (
     reader: ReadableStreamDefaultReader<Uint8Array>,
     messageId: string,
-    contentType: string
+    contentType: string,
+    onActivity?: () => void
   ) => {
     const decoder = new TextDecoder();
     let buffer = '';
@@ -342,6 +343,9 @@ export default function Home() {
       const { value, done } = await reader.read();
       if (done) {
         break;
+      }
+      if (onActivity) {
+        onActivity();
       }
       buffer += decoder.decode(value, { stream: true });
 
@@ -441,12 +445,32 @@ export default function Home() {
       }
 
       if (streamingEnabled) {
+        const streamAbortController = new AbortController();
+        const streamTimeoutMs = 60000;
+        const streamIdleTimeoutMs = 15000;
+        let idleTimedOut = false;
+        let idleTimerId = window.setTimeout(() => {
+          idleTimedOut = true;
+          streamAbortController.abort();
+        }, streamIdleTimeoutMs);
+        const resetIdleTimer = () => {
+          window.clearTimeout(idleTimerId);
+          idleTimerId = window.setTimeout(() => {
+            idleTimedOut = true;
+            streamAbortController.abort();
+          }, streamIdleTimeoutMs);
+        };
+        const streamTimeoutId = window.setTimeout(() => {
+          streamAbortController.abort();
+        }, streamTimeoutMs);
+
         const response = await fetch(`${serverUrl.replace(/\/$/, '')}${streamPath}`, {
           method: 'POST',
           headers: {
             Accept: 'text/event-stream, application/x-ndjson, application/json',
           },
           body: formData,
+          signal: streamAbortController.signal,
         });
 
         if (!response.ok || !response.body) {
@@ -455,7 +479,15 @@ export default function Home() {
 
         const contentType = response.headers.get('content-type') || '';
         const reader = response.body.getReader();
-        await parseStreamChunks(reader, messageId, contentType);
+        try {
+          await parseStreamChunks(reader, messageId, contentType, resetIdleTimer);
+        } finally {
+          window.clearTimeout(streamTimeoutId);
+          window.clearTimeout(idleTimerId);
+        }
+        if (idleTimedOut) {
+          throw new Error('Stream timed out waiting for data from the server.');
+        }
       } else {
         const response = await fetch(`${serverUrl.replace(/\/$/, '')}/process-audio`, {
           method: 'POST',
@@ -487,7 +519,12 @@ export default function Home() {
       }
     } catch (error) {
       console.error('Error processing audio:', error);
-      const baseError = error instanceof Error ? error.message : 'Unknown error';
+      const baseError =
+        error instanceof DOMException && error.name === 'AbortError'
+          ? 'Request timed out waiting for the server.'
+          : error instanceof Error
+            ? error.message
+            : 'Unknown error';
       const errorText =
         baseError === 'Failed to fetch'
           ? `Error: Failed to fetch. The server URL was ${serverUrl}. This usually means the server is unreachable from this browser or CORS is blocked. Verify you can open ${serverUrl.replace(/\/$/, '')}/health in this browser and that the DGX server allows https://fun-audio-chat-ui.vercel.app.`
