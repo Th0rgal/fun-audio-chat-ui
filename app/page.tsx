@@ -32,9 +32,13 @@ interface StreamEvent {
   choices?: Array<{ delta?: { content?: string; tool_calls?: Array<{ id?: string; function?: { name?: string; arguments?: string } }> } }>;
 }
 
-const defaultServerUrl =
-  process.env.NEXT_PUBLIC_DEFAULT_SERVER_URL ||
-  'https://spark-de79.gazella-vector.ts.net';
+const fallbackServerUrl = 'https://spark-de79.gazella-vector.ts.net';
+const rawDefaultServerUrl =
+  process.env.NEXT_PUBLIC_DEFAULT_SERVER_URL || fallbackServerUrl;
+const defaultServerUrl = rawDefaultServerUrl.startsWith('http://100.77.4.93') ||
+  rawDefaultServerUrl.startsWith('https://100.77.4.93')
+  ? fallbackServerUrl
+  : rawDefaultServerUrl;
 
 const settingsStorageKey = 'fun-audio-chat-settings';
 
@@ -59,8 +63,8 @@ export default function Home() {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const rafRef = useRef<number | null>(null);
   const silenceStartRef = useRef<number | null>(null);
+  const silenceThresholdRef = useRef<number>(0.015);
   const autoStopSilenceMs = 1200;
-  const silenceThreshold = 0.015;
 
   const stopSilenceDetection = () => {
     if (rafRef.current) {
@@ -78,6 +82,9 @@ export default function Home() {
   const startSilenceDetection = (stream: MediaStream) => {
     try {
       const audioContext = new AudioContext();
+      if (audioContext.state === 'suspended') {
+        audioContext.resume().catch(() => undefined);
+      }
       const analyser = audioContext.createAnalyser();
       analyser.fftSize = 2048;
 
@@ -88,6 +95,10 @@ export default function Home() {
       analyserRef.current = analyser;
 
       const data = new Uint8Array(analyser.fftSize);
+      const calibrationStart = Date.now();
+      const calibrationWindowMs = 350;
+      let calibrationSum = 0;
+      let calibrationCount = 0;
       const check = () => {
         if (!analyserRef.current || !mediaRecorderRef.current || !isRecordingRef.current) {
           return;
@@ -101,7 +112,15 @@ export default function Home() {
         const rms = Math.sqrt(sum / data.length);
         const now = Date.now();
 
-        if (rms < silenceThreshold) {
+        if (now - calibrationStart < calibrationWindowMs) {
+          calibrationSum += rms;
+          calibrationCount += 1;
+        } else if (calibrationCount > 0 && silenceThresholdRef.current === 0.015) {
+          const baseline = calibrationSum / calibrationCount;
+          silenceThresholdRef.current = Math.max(0.01, baseline * 1.8);
+        }
+
+        if (rms < silenceThresholdRef.current) {
           if (!silenceStartRef.current) {
             silenceStartRef.current = now;
           } else if (now - silenceStartRef.current > autoStopSilenceMs) {
@@ -124,9 +143,12 @@ export default function Home() {
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      const preferredMime = 'audio/webm';
+      const mimeType = MediaRecorder.isTypeSupported(preferredMime) ? preferredMime : undefined;
+      const mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
 
       audioChunksRef.current = [];
+      silenceThresholdRef.current = 0.015;
 
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -153,7 +175,7 @@ export default function Home() {
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
+    if (mediaRecorderRef.current && isRecordingRef.current) {
       isRecordingRef.current = false;
       mediaRecorderRef.current.stop();
       setIsRecording(false);
